@@ -52,6 +52,19 @@ body{margin:0;min-height:100vh;background:radial-gradient(1200px 700px at 30% 0%
 .die:focus-visible,.btn:focus-visible,input:focus-visible,.link:focus-visible,.ic:focus-visible,.emobar button:focus-visible{outline:3px solid var(--Y);outline-offset:3px}
 .link{background:none;border:0;text-decoration:underline;font:700 15px Nunito,sans-serif;cursor:pointer;min-height:44px;padding:0 4px}
 .foot{display:flex;flex-direction:column;align-items:center;gap:10px}
+.left{display:flex;align-items:center;gap:8px}
+.modal{position:fixed;inset:0;background:#160d07b8;backdrop-filter:blur(3px);display:grid;place-items:center;padding:16px;z-index:6}
+.mcard{width:min(360px,100%);background:#fff6ea;color:#2a180b;border-radius:22px;padding:24px 22px 18px;box-shadow:0 30px 60px #000a;display:flex;flex-direction:column;gap:14px;text-align:center;animation:rise .35s ease-out}
+@keyframes rise{from{transform:translateY(16px) scale(.96);opacity:0}}
+.mcard h2{font:800 34px/1.05 "Baloo 2",sans-serif;margin:0}
+.score{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;background:#f0e2d0;border-radius:16px;padding:12px 10px}
+.score div{display:flex;flex-direction:column;align-items:center;gap:2px;font-weight:800;font-size:15px}
+.score i{width:16px;height:16px;border-radius:50%;display:block}
+.score b{font:800 44px/1 "Baloo 2",sans-serif}
+.score span{font:800 30px/1 "Baloo 2",sans-serif;color:#9b7f66}
+.mbtns{display:flex;gap:10px}.mbtns .btn{flex:1}
+.mcard .btn{border-color:#2a180b;background:#2a180b;color:#fff6ea}
+.mcard .btn.primary{background:var(--B);border-color:var(--B);color:#fff}
 .note{color:#ffb4a8;font-size:14px;margin:0;text-align:center}.note:empty{display:none}
 .tok{transition:transform .14s ease-out}
 .still .tok{transition:none}
@@ -75,8 +88,7 @@ body{margin:0;min-height:100vh;background:radial-gradient(1200px 700px at 30% 0%
 </style></head><body>
 <div class="col">
   <div class="row top" id="rowTop">
-    <div class="chip" id="codechip" hidden><b id="codetxt"></b><button class="btn" id="copy" style="min-height:36px;padding:0 12px">Invite</button></div>
-    <span></span>
+    <div class="left"><button class="ic" id="quitBtn" aria-label="Quit to home" hidden>✕</button><div class="chip" id="codechip" hidden><b id="codetxt"></b><button class="btn" id="copy" style="min-height:36px;padding:0 12px">Invite</button></div></div>
     <div class="seat"><span class="tag" id="tagTop">Friend</span><button class="die" id="dieTop" aria-label="Friend's die" disabled></button></div>
   </div>
   <div class="frame"><svg id="board" viewBox="0 0 15 15" role="img" aria-label="Ludo board"></svg></div>
@@ -85,8 +97,13 @@ body{margin:0;min-height:100vh;background:radial-gradient(1200px 700px at 30% 0%
     <div class="tools"><button class="ic" id="emoBtn" aria-label="Send an emoji" aria-pressed="false">😜</button><button class="ic" id="muteBtn" aria-label="Sound on or off">🔊</button></div>
   </div>
   <div class="emobar" id="emobar" hidden></div>
-  <div class="foot"><p class="note" id="note"></p><button class="btn primary" id="again" hidden>Play again</button></div>
+  <div class="foot"><p class="note" id="note"></p></div>
 </div>
+<div class="modal" id="modal" hidden><div class="mcard">
+  <h2 id="mTitle"></h2><p id="mText" style="margin:0" hidden></p>
+  <div class="score" id="mScore"></div>
+  <div class="mbtns"><button class="btn" id="mNo"></button><button class="btn primary" id="mYes"></button></div>
+</div></div>
 <div class="lobby" id="lobby">
   <div class="lcard">
     <div class="dots"><i style="background:#e0362f"></i><i style="background:#1f9d55"></i><i style="background:#f2b200"></i><i style="background:#2364d2"></i></div>
@@ -180,7 +197,7 @@ CS.forEach(c=>{TK[c]=[0,1,2,3].map(i=>{
 
 /* ---------- game state ---------- */
 let S=null,DP=null,mode=null,code=null,shownRoll=-1,stepT=null;
-const fresh=seats=>({v:1,seats,turn:'b',by:'b',dice:0,dv:{b:0,g:0},rollId:0,rolled:false,sixes:0,tk:clone(EMPTY),winner:null,ts:Date.now()});
+const fresh=(seats,score)=>({v:1,seats,score:score?clone(score):{b:0,g:0},left:null,turn:'b',by:'b',dice:0,dv:{b:0,g:0},rollId:0,rolled:false,sixes:0,tk:clone(EMPTY),winner:null,ts:Date.now()});
 const mine=c=>mode==='local'||(!!S&&S.seats[c]===me);
 const myColor=()=>mode!=='online'||!S?null:S.seats.b===me?'b':S.seats.g===me?'g':null;
 const bottom=()=>myColor()||'b';
@@ -224,7 +241,7 @@ function move(i){
   const s=clone(S),p=s.tk[c][i],np=p<0?0:p+d;s.tk[c][i]=np;let cap=0;
   if(np<=50){const a=(OFF[c]+np)%52;if(!SAFE.has(a)){const o=OTH[c];s.tk[o]=s.tk[o].map(q=>q>=0&&q<=50&&(OFF[o]+q)%52===a?(cap++,-1):q)}}
   s.rolled=false;
-  if(s.tk[c].every(q=>q===56))s.winner=c;
+  if(s.tk[c].every(q=>q===56)){s.winner=c;s.score=Object.assign({b:0,g:0},s.score);s.score[c]++}
   else if(!(d===6||cap||np===56))pass(s);
   commit(s);
 }
@@ -238,7 +255,7 @@ function tick(){
     else if(a<0&&z===0){DP[c][i]=0;moving=true;SFX.out()}
     else if(!(z<0&&a>=0)){DP[c][i]=z;moving=true}}));
   if(!moving){let cap=false;CS.forEach(c=>t[c].forEach((z,i)=>{if(z<0&&DP[c][i]>=0){DP[c][i]=-1;cap=true}}));if(cap)SFX.capture()}
-  if(done){clearInterval(stepT);stepT=null}
+  if(done){clearInterval(stepT);stepT=null;modal()}
   place();
 }
 function animate(){if(!DP)DP=clone(S?S.tk:EMPTY);if(!stepT){stepT=setInterval(tick,170);tick()}}
@@ -273,7 +290,8 @@ function render(){
   $('#tagBot').textContent=mode==='local'?NAME[bc]:'You';
   $('#tagTop').textContent=mode==='local'?NAME[tc]:(mode==='online'&&S&&!S.seats.g?'':'Friend');
   $('#codechip').hidden=!(mode==='online'&&S&&!S.seats.g);
-  $('#again').hidden=!(S&&S.winner&&(mode==='local'||myColor()));
+  $('#quitBtn').hidden=!S;
+  modal();
   $('#emoBtn').hidden=!S;
   animate();place();
 }
@@ -329,6 +347,7 @@ function join(raw){
     if(d.seats.b!==me&&d.seats.g!==me){
       if(d.seats.g){apply(clone(d));show(c);note('This game already has two players. You are watching.');return}
       const s=clone(d);s.seats.g=me;s.v=(d.v||0)+1;apply(s);publish(s)}
+    else if(d.left&&d.left===(d.seats.b===me?'b':'g')){const s=clone(d);s.left=null;s.v=(d.v||0)+1;apply(s);publish(s)}
     else apply(clone(d));
     store.set('ludo-last',c);show(c)};
   netOpen(c);
@@ -342,7 +361,41 @@ $('#joinf').addEventListener('submit',e=>{e.preventDefault();join($('#codein').v
 $('#codein').addEventListener('input',e=>{e.target.value=e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'')});
 $('#localb').addEventListener('click',startLocal);
 $('#resume').addEventListener('click',()=>join(store.get('ludo-last')));
-$('#again').addEventListener('click',()=>{if(!S||!S.winner)return;const s=fresh(S.seats);s.turn=s.by=OTH[S.winner];s.rollId=S.rollId;commit(s)});
+/* ---------- end of match, quit ---------- */
+let confirmQuit=false,shownWin=null;
+function scoreHtml(){const bc=bottom(),tc=OTH[bc],sc=Object.assign({b:0,g:0},S&&S.score);
+  const nm=c=>mode==='local'?NAME[c]:c===bc?'You':'Friend';
+  return`<div><i style="background:${COL[bc]}"></i><b>${sc[bc]}</b>${nm(bc)}</div><span>-</span><div><i style="background:${COL[tc]}"></i><b>${sc[tc]}</b>${nm(tc)}</div>`}
+function modal(){
+  const m=$('#modal');let t=null;
+  if(S&&mode==='online'&&S.left&&S.left!==myColor())t=['Your friend left','','Home',null];
+  else if(confirmQuit)t=['Leave this game?','','Stay','Leave'];
+  else if(S&&S.winner&&!stepT){const w=S.winner;
+    t=[mode==='local'?NAME[w]+' wins!':w===myColor()?'You win!':myColor()?'Your friend wins':NAME[w]+' wins','','Quit',mode==='local'||myColor()?'Play again':null];
+    if(shownWin!==S.rollId+':'+w){shownWin=S.rollId+':'+w}}
+  if(!t){m.hidden=true;return}
+  $('#mTitle').textContent=t[0];$('#mScore').innerHTML=scoreHtml();
+  $('#mNo').textContent=t[2];$('#mYes').hidden=!t[3];$('#mYes').textContent=t[3]||'';
+  m.dataset.kind=confirmQuit&&!(S&&S.left&&S.left!==myColor())?'confirm':S&&S.left&&S.left!==myColor()?'left':'end';
+  m.hidden=false;
+}
+function goHome(){
+  netClose();mode=null;code=null;S=null;DP=null;confirmQuit=false;joinWait=null;bar.hidden=true;
+  try{history.replaceState(null,'',location.pathname)}catch(e){}
+  $('#lobby').hidden=false;$('#codein').value='';lnote('');note('');busyL(false);
+  const l=store.get('ludo-last');$('#resume').hidden=!l;if(l)$('#resume').textContent=`Resume game ${l}`;
+  render();
+}
+function quit(){
+  confirmQuit=false;
+  if(mode==='online'&&S&&myColor()&&!(S.left&&S.left!==myColor())){const s=clone(S);s.left=myColor();commit(s);setTimeout(goHome,700)}
+  else goHome();
+}
+$('#quitBtn').addEventListener('click',()=>{if(S&&S.winner)return modal();confirmQuit=true;modal()});
+$('#mNo').addEventListener('click',()=>{const k=$('#modal').dataset.kind;if(k==='confirm'){confirmQuit=false;modal()}else quit()});
+$('#mYes').addEventListener('click',()=>{const k=$('#modal').dataset.kind;
+  if(k==='confirm'){quit();return}
+  if(k==='end'&&S&&S.winner){const s=fresh(S.seats,S.score);s.turn=s.by=OTH[S.winner];s.rollId=S.rollId;commit(s)}});
 $('#copy').addEventListener('click',async()=>{const b=$('#copy'),link=location.href.split('#')[0]+'#'+code;
   try{if(navigator.share)await navigator.share({title:'Ludo',text:'Play Ludo with me',url:link});else{await navigator.clipboard.writeText(link);b.textContent='Copied'}}catch(e){}
   setTimeout(()=>{b.textContent='Invite'},1600)});
