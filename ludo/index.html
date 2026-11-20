@@ -226,7 +226,10 @@ function commit(s){s.v=(S?S.v||0:0)+1;s.ts=Date.now();apply(s);if(mode==='online
 
 function roll(){
   if(!canAct()||S.rolled)return;
-  const s=clone(S),c=s.turn,d=1+crypto.getRandomValues(new Uint32Array(1))[0]%6;
+  const s=clone(S),c=s.turn,rnd=()=>crypto.getRandomValues(new Uint32Array(1))[0]/4294967296;
+  // a little extra chance of a 6 while pawns wait in base: normal 16.7%, some inside 22%, all inside 28%
+  const inside=s.tk[c].filter(q=>q<0).length,p6=inside===4?.28:inside>0?.22:1/6;
+  const d=rnd()<p6?6:1+Math.floor(rnd()*5);
   s.dice=d;s.by=c;s.dv=Object.assign({b:0,g:0},s.dv);s.dv[c]=d;s.rollId++;s.sixes=d===6?s.sixes+1:0;
   if(s.sixes===3)pass(s);
   else{const m=movable(s,c,d);
